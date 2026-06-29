@@ -1,7 +1,7 @@
-#set($subject = "$esc.html($device.name): ¡alarma!")
+#set($subject = "🚨 ¡Alarma en $device.name!")
 #set($alarmKey = $event.getString('alarm'))
 #set($alarmName = $translations.get("alarm${alarmKey.substring(0, 1).toUpperCase()}${alarmKey.substring(1)}"))
-#set($digest = "Alarma de $device.name: $alarmName a las $dateTool.format('yyyy-MM-dd HH:mm:ss', $event.eventTime, $locale, $timezone)")
+#set($digest = "$alarmName a las $dateTool.format('HH:mm', $event.eventTime, $locale, $timezone)")
 <!DOCTYPE html>
 <html>
 <body>
