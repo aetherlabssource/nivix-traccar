@@ -1,5 +1,5 @@
-#set($subject = "$esc.html($device.name): ignición APAGADA")
-#set($digest = "$device.name ignición APAGADA a las $dateTool.format('yyyy-MM-dd HH:mm:ss', $event.eventTime, $locale, $timezone)")
+#set($subject = "🅿️ $device.name apagado")
+#set($digest = "Tu vehículo se apagó a las $dateTool.format('HH:mm', $event.eventTime, $locale, $timezone)")
 <!DOCTYPE html>
 <html>
 <body>

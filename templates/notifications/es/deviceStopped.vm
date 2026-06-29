@@ -1,5 +1,5 @@
-#set($subject = "$esc.html($device.name): detenido")
-#set($digest = "$device.name detenido a las $dateTool.format('yyyy-MM-dd HH:mm:ss', $event.eventTime, $locale, $timezone)")
+#set($subject = "🛑 $device.name detenido")
+#set($digest = "Tu vehículo se detuvo a las $dateTool.format('HH:mm', $event.eventTime, $locale, $timezone)")
 <!DOCTYPE html>
 <html>
 <body>
