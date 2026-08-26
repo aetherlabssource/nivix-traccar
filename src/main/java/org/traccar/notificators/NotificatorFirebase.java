@@ -25,6 +25,7 @@ import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.AndroidNotification;
 import com.google.firebase.messaging.ApnsConfig;
 import com.google.firebase.messaging.Aps;
+import com.google.firebase.messaging.CriticalSound;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.MessagingErrorCode;
 import com.google.firebase.messaging.MulticastMessage;
@@ -61,6 +62,13 @@ public class NotificatorFirebase extends Notificator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NotificatorFirebase.class);
 
+    // Alcance del entitlement de Alertas Críticas de Apple (com.apple.developer.usernotifications.critical-alerts),
+    // aprobado solo para estos tipos de evento. Debe mantenerse sincronizado a mano con
+    // criticalAlertEventTypes/criticalAlertAlarmCodes en nivix_app/lib/core/constants/app_constants.dart —
+    // un tipo agregado en un solo lado solo produce "no suena crítico cuando debería" (fail-safe), nunca al revés.
+    private static final List<String> CRITICAL_EVENT_TYPES = List.of("ignitionOn", "geofenceExit");
+    private static final List<String> CRITICAL_ALARM_CODES = List.of("sos", "powerCut");
+
     private final Storage storage;
     private final CacheManager cacheManager;
     private final ObjectMapper objectMapper;
@@ -88,6 +96,20 @@ public class NotificatorFirebase extends Notificator {
                 FirebaseApp.initializeApp(options, "manager"));
     }
 
+    private static boolean isCriticalEvent(Event event) {
+        if (event == null) {
+            return false;
+        }
+        String type = event.getType();
+        if (CRITICAL_EVENT_TYPES.contains(type)) {
+            return true;
+        }
+        if (Event.TYPE_ALARM.equals(type)) {
+            return CRITICAL_ALARM_CODES.contains(event.getString(Position.KEY_ALARM));
+        }
+        return false;
+    }
+
     @Override
     public void send(User user, NotificationMessage message, Event event, Position position) throws MessageException {
         if (user.hasAttribute("notificationTokens")) {
@@ -98,10 +120,26 @@ public class NotificatorFirebase extends Notificator {
             var androidConfig = AndroidConfig.builder()
                     .setNotification(AndroidNotification.builder().setSound("default").build());
 
-            var apnsConfig = ApnsConfig.builder()
-                    .setAps(Aps.builder().setSound("default").build());
+            boolean critical = isCriticalEvent(event);
 
-            if (message.priority()) {
+            var apsBuilder = Aps.builder();
+            if (critical) {
+                // Sonido "critical" marcado en el propio payload APNs: es lo único que hace que iOS
+                // bypasee silencio/No Molestar cuando la entrega ocurre con la app en background o
+                // terminada (el sistema pinta la notificación directo desde este payload sin darle
+                // control al cliente sobre el sonido en ese caso). Requiere el entitlement
+                // com.apple.developer.usernotifications.critical-alerts en el bundle destino.
+                apsBuilder.setSound(CriticalSound.builder()
+                        .setCritical(true)
+                        .setName("default")
+                        .setVolume(1.0)
+                        .build());
+            } else {
+                apsBuilder.setSound("default");
+            }
+            var apnsConfig = ApnsConfig.builder().setAps(apsBuilder.build());
+
+            if (message.priority() || critical) {
                 androidConfig.setPriority(AndroidConfig.Priority.HIGH);
                 apnsConfig.putHeader("apns-priority", "10");
             }
