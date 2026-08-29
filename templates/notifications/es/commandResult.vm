@@ -1,10 +1,33 @@
-#set($subject = "$esc.html($device.name): resultado de comando recibido")
-#set($digest = "Resultado de comando de $device.name recibido: $position.getString('result') a las $dateTool.format('yyyy-MM-dd HH:mm:ss', $event.eventTime, $locale, $timezone)")
+#set($result = $position.getString('result'))
+#set($resultLower = $result.toLowerCase())
+#set($isStopCommand = $resultLower.contains('relay,1') || $resultLower.contains('dyd'))
+#set($isResumeCommand = $resultLower.contains('relay,0') || $resultLower.contains('hfyd'))
+#set($succeeded = $resultLower.contains('success') || $resultLower.contains(' ok') || $resultLower.endsWith('ok'))
+#set($failed = $resultLower.contains('fail'))
+#if($resultLower.contains('cut off') || ($isStopCommand && $succeeded))
+#set($subject = "🔒 $device.name")
+#set($digest = "Motor cortado a las $dateTool.format('HH:mm', $event.eventTime, $locale, $timezone)")
+#elseif($resultLower.contains('engine will stop') || $resultLower.contains('will be cut') || $resultLower.contains('will stop'))
+#set($subject = "⏳ $device.name")
+#set($digest = "Corte de motor solicitado, se aplicará en breve")
+#elseif($resultLower.contains('restore') || $resultLower.contains('recovery') || ($isResumeCommand && $succeeded))
+#set($subject = "🔓 $device.name")
+#set($digest = "Motor restablecido a las $dateTool.format('HH:mm', $event.eventTime, $locale, $timezone)")
+#elseif($isStopCommand && $failed)
+#set($subject = "⚠️ $device.name")
+#set($digest = "El corte de motor falló a las $dateTool.format('HH:mm', $event.eventTime, $locale, $timezone)")
+#elseif($isResumeCommand && $failed)
+#set($subject = "⚠️ $device.name")
+#set($digest = "El restablecimiento de motor falló a las $dateTool.format('HH:mm', $event.eventTime, $locale, $timezone)")
+#else
+#set($subject = "$device.name: comando ejecutado")
+#set($digest = "Resultado: $result a las $dateTool.format('HH:mm', $event.eventTime, $locale, $timezone)")
+#end
 <!DOCTYPE html>
 <html>
 <body>
 Dispositivo: $esc.html($device.name)<br>
-Resultado: $esc.html($position.getString('result'))<br>
+Resultado: $esc.html($result)<br>
 Hora: $dateTool.format('yyyy-MM-dd HH:mm:ss', $event.eventTime, $locale, $timezone)<br>
 Enlace: <a href="$webUrl/event/$event.id">$webUrl/event/$event.id</a><br>
 <br>
