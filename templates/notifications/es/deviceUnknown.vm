@@ -1,10 +1,10 @@
-#set($subject = "$esc.html($device.name): estado desconocido")
-#set($digest = "$device.name estado desconocido a las $dateTool.format('yyyy-MM-dd HH:mm:ss', $event.eventTime, $locale, $timezone)")
+#set($subject = "📡 $device.name sin conexión")
+#set($digest = "Tu vehículo no ha reportado señal en los últimos minutos (detectado a las $dateTool.format('HH:mm', $event.eventTime, $locale, $timezone))")
 <!DOCTYPE html>
 <html>
 <body>
 Dispositivo: $esc.html($device.name)<br>
-Estado desconocido<br>
+Sin conexión hace varios minutos<br>
 Hora: $dateTool.format('yyyy-MM-dd HH:mm:ss', $event.eventTime, $locale, $timezone)<br>
 <br>
 <a href="$webUrl/settings/notifications?token=$token">Cancelar suscripción</a>
