@@ -17,7 +17,11 @@ package org.traccar.model;
 
 import org.traccar.storage.StorageName;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
+import java.util.HexFormat;
 
 @StorageName("tc_events")
 public class Event extends Message {
@@ -69,6 +73,24 @@ public class Event extends Message {
     public static final String TYPE_MAINTENANCE = "maintenance";
     public static final String TYPE_DRIVER_CHANGED = "driverChanged";
     public static final String TYPE_MEDIA = "media";
+
+    // Nivix: cancelación de una alerta SOS activada desde la app (ver DeviceResource.updatePanic).
+    // La activación reutiliza TYPE_ALARM con alarm=sos, igual que el botón físico del GPS.
+    public static final String TYPE_PANIC_CANCELLED = "panicCancelled";
+
+    // Nivix: hash del token FCM del celular que originó el evento. NotificatorFirebase no le envía
+    // el push a ese token (quien activa/cancela el SOS ya lo está viendo en pantalla). Se guarda
+    // hasheado porque los atributos del evento son visibles para todos los usuarios del vehículo.
+    public static final String KEY_SOURCE_TOKEN_HASH = "sourceTokenHash";
+
+    public static String hashSourceToken(String token) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest, 0, 16);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     private Date eventTime;
 
