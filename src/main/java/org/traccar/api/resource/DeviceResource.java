@@ -19,9 +19,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.core.Context;
 import org.traccar.api.BaseObjectResource;
 import org.traccar.database.MediaManager;
+import org.traccar.database.NotificationManager;
 import org.traccar.helper.LogAction;
 import org.traccar.model.Device;
 import org.traccar.model.DeviceAccumulators;
+import org.traccar.model.Event;
 import org.traccar.model.LinkedDevice;
 import org.traccar.model.Position;
 import org.traccar.model.User;
@@ -49,8 +51,10 @@ import jakarta.ws.rs.core.Response;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 @Path("devices")
@@ -69,6 +73,9 @@ public class DeviceResource extends BaseObjectResource<Device> {
 
     @Inject
     private MediaManager mediaManager;
+
+    @Inject
+    private NotificationManager notificationManager;
 
     @Inject
     private LogAction actionLogger;
@@ -182,6 +189,43 @@ public class DeviceResource extends BaseObjectResource<Device> {
         }
 
         actionLogger.resetAccumulators(request, getUserId(), entity.getDeviceId());
+        return Response.noContent().build();
+    }
+
+    /**
+     * Nivix: alerta SOS activada/cancelada desde la app. Genera el mismo evento que el botón físico
+     * del GPS (alarm=sos) para que el push crítico llegue a todas las cuentas vinculadas al vehículo
+     * y a todos sus celulares; al cancelar genera {@link Event#TYPE_PANIC_CANCELLED} (push normal).
+     * Body: {"active": true|false, "sourceToken": "<token FCM del celular que origina>"}; el
+     * sourceToken es opcional y solo sirve para no notificar al propio celular que lo origina.
+     */
+    @Path("{id}/panic")
+    @POST
+    public Response updatePanic(@PathParam("id") long deviceId, Map<String, Object> body) throws Exception {
+        permissionsService.checkPermission(Device.class, getUserId(), deviceId);
+
+        boolean active = body == null || !Boolean.FALSE.equals(body.get("active"));
+
+        // Hora actual, no la del último reporte (`new Event(type, position)` usa deviceTime): si el
+        // GPS lleva rato sin reportar, NotificationManager descartaría el push por "evento viejo".
+        Event event = new Event(active ? Event.TYPE_ALARM : Event.TYPE_PANIC_CANCELLED, deviceId);
+        if (active) {
+            event.set(Position.KEY_ALARM, Position.ALARM_SOS);
+        }
+
+        Position position = storage.getObject(Position.class, new Request(
+                new Columns.All(), new Condition.LatestPositions(deviceId)));
+        if (position != null) {
+            event.setPositionId(position.getId());
+        }
+
+        Object sourceToken = body != null ? body.get("sourceToken") : null;
+        if (sourceToken instanceof String token && !token.isBlank()) {
+            event.set(Event.KEY_SOURCE_TOKEN_HASH, Event.hashSourceToken(token.trim()));
+        }
+
+        // singletonMap: Map.of no admite position null (vehículo sin posiciones aún).
+        notificationManager.updateEvents(Collections.singletonMap(event, position));
         return Response.noContent().build();
     }
 

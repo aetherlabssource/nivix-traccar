@@ -117,6 +117,18 @@ public class NotificatorFirebase extends Notificator {
             List<String> registrationTokens = new ArrayList<>(
                     Arrays.asList(user.getString("notificationTokens").split("[, ]")));
 
+            // Nivix: no notificar al celular que originó el evento (SOS desde la app, ver
+            // DeviceResource.updatePanic). Se filtra una copia: `registrationTokens` sigue siendo la
+            // lista completa del usuario, que es la que se reescribe abajo al limpiar tokens inválidos.
+            List<String> targetTokens = new ArrayList<>(registrationTokens);
+            String sourceTokenHash = event != null ? event.getString(Event.KEY_SOURCE_TOKEN_HASH) : null;
+            if (sourceTokenHash != null) {
+                targetTokens.removeIf(token -> sourceTokenHash.equals(Event.hashSourceToken(token)));
+                if (targetTokens.isEmpty()) {
+                    return;
+                }
+            }
+
             var androidConfig = AndroidConfig.builder()
                     .setNotification(AndroidNotification.builder().setSound("default").build());
 
@@ -147,7 +159,7 @@ public class NotificatorFirebase extends Notificator {
             var messageBuilder = MulticastMessage.builder()
                     .setAndroidConfig(androidConfig.build())
                     .setApnsConfig(apnsConfig.build())
-                    .addAllTokens(registrationTokens);
+                    .addAllTokens(targetTokens);
 
             if (!"data".equals(mode)) {
                 messageBuilder.setNotification(com.google.firebase.messaging.Notification.builder()
@@ -180,7 +192,7 @@ public class NotificatorFirebase extends Notificator {
                     if (!response.isSuccessful()) {
                         MessagingErrorCode error = response.getException().getMessagingErrorCode();
                         if (error == MessagingErrorCode.INVALID_ARGUMENT || error == MessagingErrorCode.UNREGISTERED) {
-                            failedTokens.add(registrationTokens.get(index));
+                            failedTokens.add(targetTokens.get(index));
                         }
                         LOGGER.warn("Firebase user {} error", user.getId(), response.getException());
                     }
